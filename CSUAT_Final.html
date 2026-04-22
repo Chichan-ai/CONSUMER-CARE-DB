@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consumer Care | DASHBOARD</title>
+
+    <!-- ① Supabase FIRST — must load before your script.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- ② Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- ③ Chart.js CDN — replaces your old local chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- ④ Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="C:\Users\Lenovo\OneDrive - AGRIBUSINESS RURAL BANK INC\Desktop\PRIVATE FILES\Getting Started\AI-Support Desk\uatstyle.css">
+</head>
+
+<body>
+
+<!-- Mobile hamburger -->
+<button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+    <span></span><span></span><span></span>
+</button>
+
+<!-- =============================================
+     LOGIN PAGE
+============================================= -->
+<div id="login-section">
+    <div class="login-card w-full" style="max-width:420px; background:rgba(0,0,0,0.45); padding:36px; border-radius:14px; box-shadow:0 24px 64px rgba(0,0,0,0.5);">
+        
+        <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:32px;">
+            <div style="width:44px; height:44px; border-radius:10px; background:var(--accent-dim); border:1px solid var(--border-accent); display:flex; align-items:center; justify-content:center; margin-bottom:14px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h1 style="font-family:var(--font-mono); font-size:20px; font-weight:700; letter-spacing:0.15em; color:var(--text);">
+                CONSUMER<span style="color:var(--accent);">CARE</span>
+            </h1>
+            <p style="font-family:var(--font-mono); font-size:10px; letter-spacing:0.25em; color:var(--text-muted); margin-top:4px;">
+                SECURE ACCESS REQUIRED <span class="pulse" style="color:var(--accent);">_</span>
+            </p>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:18px;">
+            <div>
+                <label style="display:block; font-family:var(--font-mono); font-size:10px; letter-spacing:0.12em; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase;">Username</label>
+                <input type="text" id="username"
+                    placeholder="ENTER YOUR USERNAME"
+                    oninput="this.value = this.value.toUpperCase()"
+                    class="input"
+                    style="background:rgba(255,255,255,0.05) !important; text-transform:uppercase; letter-spacing:0.1em;">
+            </div>
+
+            <div>
+                <label style="display:block; font-family:var(--font-mono); font-size:10px; letter-spacing:0.12em; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase;">Password</label>
+                <div style="position:relative;">
+                    <input type="password" id="password"
+                        placeholder="ENTER YOUR PASSWORD"
+                        class="input"
+                        style="background:rgba(255,255,255,0.05) !important; padding-right:44px;">
+                    <button type="button" id="toggleBtn"
+                        style="position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--text-muted); transition:color 0.15s; padding:4px;"
+                        onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'">
+                        <span id="eyeIcon" style="font-size:16px;">👁️</span>
+                    </button>
+                </div>
+            </div>
+
+            <button onclick="handleLogin()" id="loginBtn"
+                class="btn btn-primary"
+                style="width:100%; justify-content:center; padding:13px; margin-top:4px; font-size:12px; letter-spacing:0.18em;">
+                LOGIN
+            </button>
+
+            <p id="login-error" class="hidden" style="text-align:center; color:var(--red); font-family:var(--font-mono); font-size:11px; letter-spacing:0.12em; padding:8px; background:rgba(255,68,68,0.08); border-radius:6px; border:1px solid rgba(255,68,68,0.2);"></p>
+        </div>
+
+        <div style="margin-top:28px; padding-top:20px; border-top:1px solid var(--border); text-align:center;">
+            <p style="font-family:var(--font-mono); font-size:9px; color:var(--text-muted); letter-spacing:0.1em;">BETA VERSION · AGRIBUSINESS RURAL BANK</p>
+        </div>
+    </div>
+</div>
+
+<!-- =============================================
+     MAIN DASHBOARD
+============================================= -->
+<div id="main-dashboard" class="hidden">
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-name">CONSUMER<span>CARE</span></div>
+            <div class="label" style="margin-top:4px;">DIGITAL BANKING · CCS</div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <button onclick="showPage('dashboard')" id="nav-dashboard" class="nav-btn active">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                DASHBOARD
+            </button>
+            <button onclick="showPage('summary')" id="nav-summary" class="nav-btn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+                SUMMARY REPORT
+            </button>
+            <button onclick="showPage('report')" id="nav-report" class="nav-btn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                NEW ENTRY
+            </button>
+            <button onclick="showPage('kiosk')" id="nav-kiosk" class="nav-btn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><rect x="8" y="6" width="8" height="8"/></svg>
+                AGRIBANK PAY KIOSK
+            </button>
+            <button id="nav-admin" onclick="showPage('admin')" class="nav-btn hidden">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                ADMIN
+            </button>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div style="text-align:center; font-family:var(--font-mono); font-size:9px; color:var(--text-muted); letter-spacing:0.1em; padding:2px 0 4px;">
+                LOGGED IN AS: <span id="sidebar-user" style="color:var(--accent);">—</span>
+            </div>
+            <button onclick="toggleTheme()" class="footer-btn">
+                <span id="theme-icon">☀️</span> LIGHT / DARK
+            </button>
+            <button onclick="handleLogout()" class="footer-btn danger">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                LOGOUT
+            </button>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main id="main-content">
+
+        <!-- ======= DASHBOARD PAGE ======= -->
+        <section id="page-dashboard">
+            <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div>
+                    <div class="page-title">PERFORMANCE MONITOR</div>
+                    <div class="page-subtitle">CCS Daily Monitoring Module</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div id="loading-state" class="hidden">
+                        <div id="loading-indicator">
+                            <div class="spinner"></div>
+                            <span class="pulse">SYNCING...</span>
+                        </div>
+                    </div>
+                    <button onclick="refreshDashboardData()" class="btn btn-ghost btn-sm">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                        REFRESH
+                    </button>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px;">
+                <div class="card stat-card" style="--stripe-color:var(--text-muted);">
+                    <div class="label">Total Tickets</div>
+                    <div class="stat-num" id="stat-total">0</div>
+                </div>
+                <div class="card stat-card" style="--stripe-color:var(--accent);">
+                    <div class="label">Resolved</div>
+                    <div class="stat-num" id="stat-resolved" style="color:var(--accent);">0</div>
+                </div>
+                <div class="card stat-card" style="--stripe-color:var(--orange);">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="label">Active Pending</span>
+                        <button onclick="showPage('summary')" style="font-family:var(--font-mono);font-size:9px;color:var(--accent);background:none;border:none;cursor:pointer;letter-spacing:0.08em; transition: opacity 0.15s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">VIEW →</button>
+                    </div>
+                    <div class="stat-num" id="stat-pending" style="color:var(--orange);">0</div>
+                </div>
+                <div class="card stat-card" style="--stripe-color:var(--blue);">
+                    <div class="label">Avg Resolution Time</div>
+                    <div class="stat-num" id="stat-tat" style="color:var(--blue);">0h</div>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="dot dot-green"></div>
+                        <span class="label">Branch Volume</span>
+                    </div>
+                    <div style="padding:20px; height:360px;">
+                        <canvas id="branchChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card" style="display:flex; flex-direction:column;">
+                    <div class="card-header" style="justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="dot dot-amber"></div>
+                            <span class="label">Live Database</span>
+                        </div>
+                        <div class="search-wrap" style="width:180px;">
+                            <svg class="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="text" id="tableSearch" class="input" placeholder="Name or ticket #..." onkeyup="filterDashboardTable()" style="padding:6px 10px 6px 28px !important; font-size:11px;">
+                        </div>
+                    </div>
+                    <div style="overflow-y:auto; flex:1; max-height:340px;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Ticket #</th>
+                                    <th>Client</th>
+                                    <th>Branch</th>
+                                    <th>Severity</th>
+                                    <th style="text-align:right;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="daily-report-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div class="dot dot-green"></div>
+                        <span class="label">Type of Engagement</span>
+                    </div>
+                    <div style="padding:20px; height:360px;">
+                        <canvas id="engagementChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div class="dot dot-red"></div>
+                        <span class="label">Ticket Type Breakdown</span>
+                    </div>
+                    <div style="padding:20px; height:360px;">
+                        <canvas id="ticketChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ======= SUMMARY PAGE ======= -->
+        <section id="page-summary" class="hidden">
+            <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:1px solid var(--border); padding-bottom:16px;">
+                <div>
+                    <div class="page-title">CS SUMMARY</div>
+                    <div class="page-subtitle">Performance Dashboard</div>
+
+                    <button onclick="downloadExcel()"
+                        class="btn btn-excel">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        EXPORT TO EXCEL
+                    </button>
+                </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:16px; margin-top:20px; max-width:900px;">
+                <div class="card">
+                    <div class="card-header" style="justify-content:space-between;">
+                        <span class="label">Real-Time Metrics</span>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span class="label">Ticket FTM:</span>
+                            <span id="global-monthly-total" style="font-family:var(--font-mono); font-size:20px; font-weight:700; color:var(--accent);">---</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; background:rgba(255,255,255,0.02); padding:10px 20px; border-bottom:1px solid var(--border);">
+                            <span class="label">Metric Category</span>
+                            <span class="label" style="text-align:right;">Mobile App &amp; Kiosk</span>
+                        </div>
+                        <div style="border-bottom:1px solid var(--border);">
+                            <div style="display:grid; grid-template-columns:1fr 1fr; padding:20px; align-items:center;">
+                                <span class="label">TICKET FTD</span>
+                                <span id="ftd-ma" style="font-family:var(--font-mono); font-size:40px; font-weight:700; text-align:right; padding-right:20px;">0</span>
+                            </div>
+                        </div>
+                        <div style="border-bottom:1px solid var(--border); background:var(--accent-dim);">
+                            <div style="display:grid; grid-template-columns:1fr 1fr; padding:20px; align-items:center;">
+                                <span class="label">Monthly Daily Avg</span>
+                                <span id="mt-ma" style="font-family:var(--font-mono); font-size:40px; font-weight:700; color:var(--accent); text-align:right; padding-right:20px;">0</span>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; padding:20px; align-items:center;">
+                                <span class="label">Total Resolved</span>
+                                <span id="res-ma" style="font-family:var(--font-mono); font-size:40px; font-weight:700; opacity:0.3; text-align:right; padding-right:20px;">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header" style="justify-content:space-between;">
+                        <span class="label" style="color:var(--accent);">Tickets For The Day</span>
+                        <span id="today-total-tag" class="label">0 TOTAL</span>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th><th>Name</th><th>Type</th><th>Branch</th><th style="text-align:right;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="summary-daily-list"></tbody>
+                        </table>
+                        <div id="summary-empty-msg" class="hidden" style="padding:40px; text-align:center; font-family:var(--font-mono); font-size:11px; color:var(--text-muted);">
+                            NO TICKETS FOR TODAY
+                        </div>
+                    </div>
+                    <div style="padding:10px 16px; border-top:1px solid var(--border); background:rgba(255,255,255,0.01);">
+                        <span class="label">SYNC: <span id="summary-date-display" style="color:var(--text-dim);"></span> · AGRIBANK CONSUMER CARE</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ======= NEW ENTRY PAGE ======= -->
+        <section id="page-report" class="hidden">
+            <div class="page-header">
+                <div class="page-title">NEW ENTRY</div>
+                <div class="page-subtitle">Submit a new support ticket</div>
+            </div>
+
+            <div class="card" style="max-width:900px;">
+                <div class="card-header">
+                    <div class="dot dot-green"></div>
+                    <span class="label">Ticket Form</span>
+                </div>
+
+                <form id="ticketForm" novalidate style="padding:28px; display:flex; flex-direction:column; gap:28px;">
+                    <div>
+                        <div class="section-heading">Tracking Info</div>
+                        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Ticket No</div>
+                                <input type="text" required id="ticketNoInput" name="ticketNo" class="input">
+                                <p style="font-family:var(--font-mono); font-size:9px; margin-top:5px; color:var(--text-muted);">
+                                    LAST: <span id="last-ticket-hint">...</span>
+                                </p>
+                            </div>
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Ticket Tagging</div>
+                                <input type="text" required name="ticketTagging" class="input">
+                            </div>
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Date/Time Issued</div>
+                                <input type="datetime-local" required name="dateIssued" id="dateIssuedInput" class="input">
+                            </div>
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Date/Time Pickup</div>
+                                <input type="datetime-local" required name="datePickedUp" class="input">
+                            </div>
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Date/Time Reply</div>
+                                <input type="datetime-local" required name="dateReplied" class="input">
+                            </div>
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Ticket Status</div>
+                                <select name="status" required class="input">
+                                    <option value="">Select Status</option>
+                                    <option>PENDING</option>
+                                    <option>RESOLVED</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="section-heading">Client Info</div>
+                        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Customer Name</div>
+                                <input type="text" name="name" required class="input">
+                            </div>
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Branch</div>
+                                <select name="branch" required class="input">
+                                    <option value="">Select Branch</option>
+                                    <option>BACOLOD</option><option>BACLARAN</option><option>BALER</option>
+                                    <option>BALIWAG</option><option>BAMBANG</option><option>BANTAY</option>
+                                    <option>BULAN</option><option>CABANATUAN</option><option>CAINTA</option>
+                                    <option>CALAMBA</option><option>CALAPAN</option><option>CAUAYAN</option>
+                                    <option>DAET</option><option>DAVAO</option><option>GENERAL SANTOS</option>
+                                    <option>GUIMBA</option><option>ILOILO</option><option>KAWIT</option>
+                                    <option>KORONADAL</option><option>LEGAZPI</option><option>LIPA</option>
+                                    <option>LUCENA</option><option>MADDELA</option><option>MANDAUE</option>
+                                    <option>MANSALAY</option><option>MASBATE</option><option>MUNTINLUPA</option>
+                                    <option>NAGA</option><option>ODIONGAN</option><option>ORTIGAS CENTER, PASIG</option>
+                                    <option>PUERTO PRINCESA</option><option>ROXAS</option><option>SAN FERNANDO, LA UNION</option>
+                                    <option>SAN JACINTO</option><option>SAN JOSE, NUEVA ECIJA</option><option>SAN JOSE, OCC. MINDORO</option>
+                                    <option>SANTIAGO</option><option>SOLANO</option><option>SORSOGON</option>
+                                    <option>TABACO</option><option>TAGAYTAY</option><option>TAGBILARAN</option>
+                                    <option>TARLAC</option><option>TUGUEGARAO</option><option>URDANETA</option>
+                                </select>
+                            </div>
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Channel</div>
+                                <select name="channel" required class="input">
+                                    <option value="">Select Channel</option>
+                                    <option>HEIMDALL</option><option>EMAIL</option><option>CHATBOT</option>
+                                    <option>WALKIN</option><option>VIBER</option><option>MOBILE APP</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="section-heading">Ticket Info</div>
+                        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Type of Ticket</div>
+                                <select name="type" required class="input">
+                                    <option value="">Select Type</option>
+                                    <option>DEPOSIT CONCERNS</option>
+                                    <option>LOAN CONCERNS</option>
+                                    <option>LOG-IN ISSUES</option>
+                                    <option>MOBILE APP ISSUES</option>
+                                    <option>SOA</option>
+                                    <option>OTHER CONCERNS</option>
+                                </select>
+                            </div>
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Type of Engagement</div>
+                                <select name="engagement" required class="input">
+                                    <option value="">Select Type</option>
+                                    <option>CONCERN</option><option>REQUEST</option><option>QUERY</option>
+                                    <option>COMPLAINT</option><option>ISSUE</option><option>OTHERS</option>
+                                </select>
+                            </div>
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Severity Level</div>
+                                <select name="severity" required class="input" style="border-left:2px solid rgba(255,68,68,0.4) !important;">
+                                    <option value="">Select Level</option>
+                                    <option>CRITICAL</option><option>HIGH</option>
+                                    <option>MODERATE</option><option>LOW</option>
+                                </select>
+                            </div>
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Client Concern</div>
+                                <textarea name="concerns" required class="input" style="height:100px; resize:vertical;" placeholder="Describe the issue..."></textarea>
+                            </div>
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Assistance Provided</div>
+                                <textarea name="assistance" required class="input" style="height:100px; resize:vertical;" placeholder="Details of help given..."></textarea>
+                            </div>
+                            <div>
+                                <div class="label" style="margin-bottom:7px;">Action Taken</div>
+                                <select name="action" required class="input">
+                                    <option value="">Select Action</option>
+                                    <option>ACCOMMODATED</option><option>ENDORSED</option><option>ESCALATED</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="submitBtn" class="btn btn-primary"
+                        style="width:100%; justify-content:center; padding:14px; font-size:12px;">
+                        UPLOAD TICKET
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- ======= KIOSK PAGE ======= -->
+        <section id="page-kiosk" class="hidden">
+            <div class="page-header">
+                <div class="page-title">AGRIBANK PAY KIOSK</div>
+                <div class="page-subtitle">Terminal Status Monitor</div>
+            </div>
+
+            <div class="card">
+                <div class="card-header" style="justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div class="dot dot-green" style="animation:pulse-dot 2s infinite;"></div>
+                        <span class="label" style="color:var(--teal);">Live Terminal Feed</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                        <div class="search-wrap" style="width:200px;">
+                            <svg class="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="text" id="kioskSearchInput" class="input" placeholder="Name or terminal #" onkeyup="filterKioskTable()" style="padding:6px 10px 6px 28px !important; font-size:11px;">
+                        </div>
+                        <button class="btn btn-ghost btn-sm" onclick="loadKioskData()">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                            REFRESH
+                        </button>
+                        <div class="label">
+                            ACTIVE: <span id="kiosk-count" style="color:var(--accent); font-size:14px; font-weight:700;">00</span>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div id="loader" style="padding:60px; text-align:center; color:var(--teal);">
+                        <div class="spinner" style="margin:0 auto 12px; border-top-color:var(--teal);"></div>
+                        <div class="label">CONNECTING...</div>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table" id="kioskTable" style="display:none;">
+                            <thead>
+                                <tr>
+                                    <th>Terminal No</th>
+                                    <th>Location</th>
+                                    <th>Go Live</th>
+                                    <th>Hours</th>
+                                    <th>Address</th>
+                                    <th>Connectivity</th>
+                                    <th>Kiosk Threshold</th>
+                                    <th style="text-align:right;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ======= ADMIN PAGE ======= -->
+        <section id="page-admin" class="hidden">
+            <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div>
+                    <div class="page-title">SYSTEM ADMINISTRATION</div>
+                    <div class="page-subtitle">Core System Controls</div>
+                </div>
+                <!-- FIX: Export button now calls proper Excel export -->
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="dot dot-red"></div>
+                        <span class="label">System Core Access</span>
+                    </div>
+                    <div style="padding:20px; display:flex; flex-direction:column; gap:14px;">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                            <button onclick="renderUserTable()" class="btn btn-ghost btn-sm" style="justify-content:center;">REFRESH</button>
+                            <button onclick="forceLogout()" class="btn btn-danger btn-sm" style="justify-content:center;">FORCE LOGOUT</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header" style="justify-content:space-between;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="dot dot-amber"></div>
+                            <span class="label">Event Log Stream</span>
+                        </div>
+                        <button onclick="document.getElementById('admin-logs').innerHTML=''"
+                            style="font-family:var(--font-mono); font-size:9px; color:var(--text-muted); background:none; border:none; cursor:pointer; letter-spacing:0.08em; transition:color 0.15s;"
+                            onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-muted)'">[CLEAR]</button>
+                    </div>
+                    <div style="padding:14px;">
+                        <div id="admin-logs" style="height:120px; overflow-y:auto; display:flex; flex-direction:column; gap:2px;">
+                            <div class="log-entry"><span class="log-time">[INIT]</span><span class="log-arrow">>></span>INITIALIZING ADMIN MODULE...</div>
+                            <div class="log-entry"><span class="log-time">[AUTH]</span><span class="log-arrow">>></span>SESSION START: OK</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header" style="justify-content:space-between;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <div class="dot dot-green"></div>
+                        <span class="label">User Management</span>
+                    </div>
+                    <button onclick="openAddUserModal()" class="btn btn-primary btn-sm">+ ADD NEW USER</button>
+                </div>
+                <div style="padding:20px; display:flex; flex-direction:column; gap:14px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:10px 14px; border-radius:7px; border:1px solid var(--border);">
+                        <div class="search-wrap" style="width:240px;">
+                            <svg class="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="text" id="user-search" oninput="filterUserTable()" placeholder="Search database..." class="input" style="padding:7px 10px 7px 28px !important; font-size:11px;">
+                        </div>
+                        <div class="label">ACTIVE: <span id="user-count" style="color:var(--accent); font-size:14px; font-weight:700;">00</span></div>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Username</th><th>Role</th><th>Branch</th><th>Status</th><th style="text-align:right;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-list-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- =============================================
+     SCRIPTS — order matters!
+     ① supabase (already in <head>)
+     ② chart.js  (already in <head>)
+     ③ your app script LAST
+============================================= -->
+<script src="uatscript.js"></script>
+
+</body>
+</html>
