@@ -759,13 +759,13 @@ section { animation: fadeIn 0.22s ease; }
 
 /* Sidebar backdrop overlay */
 #sidebar-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    backdrop-filter: blur(2px);
-    z-index: 99;
+    pointer-events: none;
 }
+
+#sidebar-overlay.visible {
+    pointer-events: auto;
+}
+
 #sidebar-overlay.visible { display: block; }
 
 /* Table overflow wrapper */
