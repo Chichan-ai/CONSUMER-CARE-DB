@@ -28,7 +28,7 @@
     --red: #ff4444;
     --yellow: #ffc53d;
     --radius: 10px;
-    ---w: 240px;
+    --sidebar-w: 240px;
     --font-mono: 'JetBrains Mono', monospace;
     --font-body: 'DM Sans', sans-serif;
     --grad-color: rgba(5, 150, 105, 0.15);
@@ -222,12 +222,12 @@ body > * { position: relative; z-index: 1; }
 .stat-card:hover .stat-num { text-shadow: 0 0 16px var(--stripe-color, var(--accent)); }
 
 /* =============================================
-   
+   SIDEBAR
 ============================================= */
-# {
+#sidebar {
     position: fixed;
     left: 0; top: 0; bottom: 0;
-    width: var(---w);
+    width: var(--sidebar-w);
     background: var(--surface);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -238,7 +238,7 @@ body > * { position: relative; z-index: 1; }
     transition: transform 0.3s cubic-bezier(0.16,1,0.3,1);
 }
 
-.-brand {
+.sidebar-brand {
     padding: 24px 20px 18px;
     border-bottom: 1px solid var(--border);
 }
@@ -253,7 +253,7 @@ body > * { position: relative; z-index: 1; }
 
 .brand-name span { color: var(--accent); }
 
-.-nav {
+.sidebar-nav {
     flex: 1;
     padding: 14px 12px;
     display: flex;
@@ -292,7 +292,7 @@ body > * { position: relative; z-index: 1; }
 .nav-btn svg { flex-shrink: 0; opacity: 0.7; }
 .nav-btn.active svg { opacity: 1; }
 
-.-footer {
+.sidebar-footer {
     padding: 12px;
     border-top: 1px solid var(--border);
     display: flex;
@@ -325,7 +325,7 @@ body > * { position: relative; z-index: 1; }
    MAIN CONTENT
 ============================================= */
 #main-content {
-    margin-left: var(---w);
+    margin-left: var(--sidebar-w);
     padding: 28px 32px;
     min-height: 100vh;
 }
@@ -687,13 +687,13 @@ section { animation: fadeIn 0.22s ease; }
    RESPONSIVE
 ============================================= */
 
-/* : hidden off-screen on mobile */
+/* Sidebar: hidden off-screen on mobile */
 @media (max-width: 767px) {
-    # {
+    #sidebar {
         transform: translateX(-100%);
         box-shadow: none;
     }
-    #.open {
+    #sidebar.open {
         transform: translateX(0);
         box-shadow: 4px 0 40px rgba(0,0,0,0.6);
     }
@@ -771,14 +771,14 @@ section { animation: fadeIn 0.22s ease; }
     border-radius: 2px;
     transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
 }
-#.open ~ #hamburger-btn span:nth-child(1) { transform: translateY(7px) rotate(45deg); background: var(--accent); }
-#.open ~ #hamburger-btn span:nth-child(2) { opacity: 0; transform: scaleX(0); }
-#.open ~ #hamburger-btn span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); background: var(--accent); }
+#sidebar.open ~ #hamburger-btn span:nth-child(1) { transform: translateY(7px) rotate(45deg); background: var(--accent); }
+#sidebar.open ~ #hamburger-btn span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+#sidebar.open ~ #hamburger-btn span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); background: var(--accent); }
 
 @media (max-width: 767px) { #hamburger-btn { display: flex; } }
 
-/*  backdrop overlay */
-#-overlay {
+/* Sidebar backdrop overlay */
+#sidebar-overlay {
     display: none;
     position: fixed;
     inset: 0;
@@ -786,7 +786,7 @@ section { animation: fadeIn 0.22s ease; }
     backdrop-filter: blur(2px);
     z-index: 99;
 }
-#-overlay.visible { display: block; }
+#sidebar-overlay.visible { display: block; }
 
 /* Table overflow wrapper */
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -861,8 +861,8 @@ body.night-shift { filter: contrast(1.04); }
 </head>
 <body class="dark">
 
-<!--  backdrop overlay -->
-<div id="-overlay" onclick="close()"></div>
+<!-- Sidebar backdrop overlay -->
+<div id="sidebar-overlay" onclick="closeSidebar()"></div>
 
 <!-- Mobile Hamburger -->
 <button id="hamburger-btn" onclick="toggleSidebar()" aria-label="Toggle menu" aria-expanded="false">
@@ -1654,7 +1654,7 @@ function showPage(page) {
     if (page === 'report') updateDateInput();
     if (page === 'admin')  renderUserTable();
     // Close mobile sidebar
-    closeSidebar();
+    document.getElementById('sidebar')?.classList.remove('open');
 }
 
 function toggleSidebar() {
