@@ -761,7 +761,6 @@ section { animation: fadeIn 0.22s ease; }
 #sidebar-overlay {
     pointer-events: none;
 }
-
 #sidebar-overlay.visible {
     pointer-events: auto;
 }
