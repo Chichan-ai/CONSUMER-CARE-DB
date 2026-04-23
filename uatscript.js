@@ -226,36 +226,20 @@ function showPage(page) {
     }
 
     localStorage.setItem('activePage', page);
-    ['dashboard','summary','report','kiosk','analytics','audit','admin'].forEach(p => {
+    ['dashboard','summary','report','kiosk','admin'].forEach(p => {
         const pageEl = document.getElementById(`page-${p}`);
         const navEl  = document.getElementById(`nav-${p}`);
         if (pageEl) pageEl.classList.toggle('hidden', p !== page);
         if (navEl)  navEl.classList.toggle('active',  p === page);
     });
-    if (page === 'report')    updateDateInput();
-    if (page === 'admin')     renderUserTable();
-    if (page === 'analytics') renderAnalytics();
-    if (page === 'audit')     { renderAuditLog(); updateAuditCount(); }
+    if (page === 'report') updateDateInput();
+    if (page === 'admin')  renderUserTable();
     // Close mobile sidebar
-    closeSidebar();
+    document.getElementById('sidebar')?.classList.remove('open');
 }
 
 function toggleSidebar() {
-    const sidebar   = document.getElementById('sidebar');
-    const overlay   = document.getElementById('sidebar-overlay');
-    const hamburger = document.getElementById('hamburger-btn');
-    const isOpen    = sidebar.classList.toggle('open');
-    overlay.classList.toggle('visible', isOpen);
-    hamburger.setAttribute('aria-expanded', isOpen);
-}
-
-function closeSidebar() {
-    const sidebar   = document.getElementById('sidebar');
-    const overlay   = document.getElementById('sidebar-overlay');
-    const hamburger = document.getElementById('hamburger-btn');
-    sidebar.classList.remove('open');
-    overlay.classList.remove('visible');
-    if (hamburger) hamburger.setAttribute('aria-expanded', 'false');
+    document.getElementById('sidebar').classList.toggle('open');
 }
 
 // Auto-refresh admin table every 5 min if visible
