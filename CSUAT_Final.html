@@ -5,28 +5,152 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Consumer Care | DASHBOARD</title>
 
-    <!-- ① Supabase FIRST — must load before your script.js -->
+    <!-- Supabase FIRST -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <!-- ② Tailwind -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- ③ Chart.js CDN — replaces your old local chart.js -->
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS for real Excel export -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-    <!-- ④ Fonts -->
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="uatstyle.css">
+    
 </head>
 
-<body>
+<body class="dark">
 
-<!-- Mobile hamburger -->
-<button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+<!-- Sidebar backdrop overlay -->
+<div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- Mobile Hamburger -->
+<button id="hamburger-btn" onclick="toggleSidebar()" aria-label="Toggle menu" aria-expanded="false">
     <span></span><span></span><span></span>
 </button>
+
+
+<!-- =============================================
+     TOP BAR — Global Search, Notifications, Quick Actions
+============================================= -->
+<div id="top-bar" class="hidden">
+    <!-- Global Search -->
+    <div id="global-search-wrap">
+        <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="global-search" placeholder="Search tickets, clients, branches..." oninput="handleGlobalSearch(this.value)" onfocus="openSearchPanel()" autocomplete="off">
+        <div id="search-results-panel"></div>
+    </div>
+
+    <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+        <!-- SLA alert counter -->
+        <div id="sla-alert-chip" class="hidden" style="font-family:var(--font-mono);font-size:10px;color:var(--red);background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.25);padding:4px 10px;border-radius:20px;cursor:pointer;white-space:nowrap;" onclick="showPage('analytics')">
+            ⚠ <span id="sla-count">0</span> SLA BREACH
+        </div>
+
+        <!-- Notification Bell -->
+        <button id="notif-btn" onclick="toggleNotifPanel()" title="Notifications">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span id="notif-badge">0</span>
+        </button>
+
+        <!-- Quick Export -->
+        <button onclick="downloadExcel()" class="btn btn-excel btn-sm" style="white-space:nowrap;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            EXPORT
+        </button>
+    </div>
+</div>
+
+<!-- Notification Panel -->
+<div id="notif-panel">
+    <div class="notif-header">
+        <span style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--text);">ALERTS &amp; NOTIFICATIONS</span>
+        <button onclick="clearAllNotifs()" style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);background:none;border:none;cursor:pointer;letter-spacing:0.08em;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'">[CLEAR ALL]</button>
+    </div>
+    <div class="notif-list" id="notif-list">
+        <div style="padding:24px;text-align:center;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">NO NOTIFICATIONS</div>
+    </div>
+</div>
+
+<!-- Ticket Detail Modal -->
+<div id="ticket-modal" onclick="if(event.target===this)closeTicketModal()">
+    <div class="ticket-modal-box">
+        <div class="modal-section flex-between" style="padding:16px 24px;">
+            <div>
+                <div style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted);">TICKET DETAIL</div>
+                <div id="modal-ticket-no" style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:var(--accent);">#---</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <div id="modal-status-badge" class="badge"></div>
+                <button onclick="closeTicketModal()" style="background:none;border:1px solid var(--border);border-radius:6px;width:32px;height:32px;cursor:pointer;color:var(--text-dim);font-size:18px;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
+            </div>
+        </div>
+
+        <!-- Client Info -->
+        <div class="modal-section">
+            <div class="label" style="color:var(--accent);margin-bottom:4px;">CLIENT INFORMATION</div>
+            <div class="modal-field-grid">
+                <div class="modal-field"><label>Customer Name</label><div class="modal-field-val" id="modal-name">---</div></div>
+                <div class="modal-field"><label>Branch</label><div class="modal-field-val" id="modal-branch">---</div></div>
+                <div class="modal-field"><label>Channel</label><div class="modal-field-val" id="modal-channel">---</div></div>
+                <div class="modal-field"><label>Date Issued</label><div class="modal-field-val" id="modal-date-issued">---</div></div>
+            </div>
+        </div>
+
+        <!-- Ticket Info -->
+        <div class="modal-section">
+            <div class="label" style="color:var(--accent);margin-bottom:4px;">TICKET DETAILS</div>
+            <div class="modal-field-grid">
+                <div class="modal-field"><label>Ticket Type</label><div class="modal-field-val" id="modal-type">---</div></div>
+                <div class="modal-field"><label>Engagement</label><div class="modal-field-val" id="modal-engagement">---</div></div>
+                <div class="modal-field"><label>Severity</label><div class="modal-field-val" id="modal-severity">---</div></div>
+                <div class="modal-field"><label>Action Taken</label><div class="modal-field-val" id="modal-action">---</div></div>
+            </div>
+            <div class="modal-field" style="margin-top:12px;"><label>Client Concern</label><div class="modal-field-val" id="modal-concern" style="white-space:pre-wrap;">---</div></div>
+            <div class="modal-field" style="margin-top:10px;"><label>Assistance Provided</label><div class="modal-field-val" id="modal-assistance" style="white-space:pre-wrap;">---</div></div>
+        </div>
+
+        <!-- SLA & Resolution -->
+        <div class="modal-section">
+            <div class="label" style="color:var(--accent);margin-bottom:8px;">SLA &amp; RESOLUTION</div>
+            <div class="modal-field-grid">
+                <div class="modal-field"><label>Date Picked Up</label><div class="modal-field-val" id="modal-pickup">---</div></div>
+                <div class="modal-field"><label>Date Replied</label><div class="modal-field-val" id="modal-replied">---</div></div>
+            </div>
+            <div class="sla-bar-wrap" style="margin-top:12px;">
+                <div class="flex-between" style="margin-bottom:4px;">
+                    <span class="label">SLA RESOLUTION TIME</span>
+                    <span id="modal-tat" style="font-family:var(--font-mono);font-size:10px;color:var(--accent);">---</span>
+                </div>
+                <div class="sla-bar-bg"><div class="sla-bar-fill" id="modal-sla-bar" style="width:0%;background:var(--accent);"></div></div>
+            </div>
+        </div>
+
+        <!-- Interaction Log / Notes -->
+        <div class="modal-section">
+            <div class="flex-between" style="margin-bottom:8px;">
+                <div class="label" style="color:var(--accent);">INTERACTION LOG</div>
+                <span style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);" id="modal-log-count">0 NOTES</span>
+            </div>
+            <div class="interaction-log" id="modal-interaction-log">
+                <div style="text-align:center;padding:16px;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">NO NOTES YET</div>
+            </div>
+            <div class="add-note-area" style="margin-top:10px;">
+                <textarea id="note-input" class="input" style="min-height:52px;resize:none;font-size:12px;" placeholder="Add a note or follow-up action..."></textarea>
+                <button onclick="addTicketNote()" class="btn btn-primary btn-sm" style="align-self:flex-end;white-space:nowrap;">ADD NOTE</button>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="modal-section" style="display:flex;gap:8px;flex-wrap:wrap;padding:14px 24px;">
+            <button onclick="modalChangeStatus('RESOLVED')" class="btn btn-primary btn-sm">✓ MARK RESOLVED</button>
+            <button onclick="modalChangeStatus('PENDING')" class="btn btn-ghost btn-sm">⏳ SET PENDING</button>
+            <button onclick="modalChangeStatus('BLOCKED')" class="btn btn-danger btn-sm">⊘ BLOCK</button>
+            <button onclick="copyTicketInfo()" class="btn btn-ghost btn-sm" style="margin-left:auto;">⎘ COPY INFO</button>
+        </div>
+    </div>
+</div>
 
 <!-- =============================================
      LOGIN PAGE
@@ -115,6 +239,14 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><rect x="8" y="6" width="8" height="8"/></svg>
                 AGRIBANK PAY KIOSK
             </button>
+            <button onclick="showPage('analytics')" id="nav-analytics" class="nav-btn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                ANALYTICS
+            </button>
+            <button onclick="showPage('audit')" id="nav-audit" class="nav-btn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                AUDIT TRAIL
+            </button>
             <button id="nav-admin" onclick="showPage('admin')" class="nav-btn hidden">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 ADMIN
@@ -140,7 +272,7 @@
 
         <!-- ======= DASHBOARD PAGE ======= -->
         <section id="page-dashboard">
-            <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div class="page-header">
                 <div>
                     <div class="page-title">PERFORMANCE MONITOR</div>
                     <div class="page-subtitle">CCS Daily Monitoring Module</div>
@@ -159,7 +291,17 @@
                 </div>
             </div>
 
-            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px;">
+            <!-- Filter Bar: quick-filter by status/severity -->
+            <div id="filter-bar">
+                <button class="filter-chip active" data-filter="all" onclick="applyFilter('all', this)">ALL TICKETS</button>
+                <button class="filter-chip chip-orange" data-filter="pending" onclick="applyFilter('pending', this)">PENDING</button>
+                <button class="filter-chip chip-red" data-filter="critical" onclick="applyFilter('critical', this)">CRITICAL</button>
+                <button class="filter-chip" data-filter="today" onclick="applyFilter('today', this)">TODAY</button>
+                <button class="filter-chip" data-filter="resolved" onclick="applyFilter('resolved', this)">RESOLVED</button>
+                <span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);" id="filter-count-label"></span>
+            </div>
+
+            <div class="stats-grid">
                 <div class="card stat-card" style="--stripe-color:var(--text-muted);">
                     <div class="label">Total Tickets</div>
                     <div class="stat-num" id="stat-total">0</div>
@@ -180,8 +322,29 @@
                     <div class="stat-num" id="stat-tat" style="color:var(--blue);">0h</div>
                 </div>
             </div>
+            <!-- Extended KPI row (2 extras) -->
+            <div class="stats-grid" style="margin-bottom:16px;">
+                <div class="card stat-card" style="--stripe-color:var(--accent);">
+                    <div class="label">SLA Compliance</div>
+                    <div class="stat-num" id="stat-sla" style="color:var(--accent);">--%</div>
+                    <div class="kpi-trend kpi-up" id="stat-sla-trend"></div>
+                </div>
+                <div class="card stat-card" style="--stripe-color:var(--red);">
+                    <div class="label">Critical Open</div>
+                    <div class="stat-num" id="stat-critical" style="color:var(--red);">0</div>
+                    <div class="kpi-trend" id="stat-critical-trend"></div>
+                </div>
+                <div class="card stat-card" style="--stripe-color:var(--purple);">
+                    <div class="label">Channel: App</div>
+                    <div class="stat-num" id="stat-app" style="color:var(--purple);">0</div>
+                </div>
+                <div class="card stat-card" style="--stripe-color:var(--yellow);">
+                    <div class="label">Escalated</div>
+                    <div class="stat-num" id="stat-escalated" style="color:var(--yellow);">0</div>
+                </div>
+            </div>
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+            <div class="charts-grid">
                 <div class="card">
                     <div class="card-header">
                         <div class="dot dot-green"></div>
@@ -203,7 +366,7 @@
                             <input type="text" id="tableSearch" class="input" placeholder="Name or ticket #..." onkeyup="filterDashboardTable()" style="padding:6px 10px 6px 28px !important; font-size:11px;">
                         </div>
                     </div>
-                    <div style="overflow-y:auto; flex:1; max-height:340px;">
+                    <div class="table-wrap" style="flex:1; max-height:340px; overflow-y:auto;">
                         <table class="data-table">
                             <thead>
                                 <tr>
@@ -247,12 +410,6 @@
                 <div>
                     <div class="page-title">CS SUMMARY</div>
                     <div class="page-subtitle">Performance Dashboard</div>
-
-                    <button onclick="downloadExcel()"
-                        class="btn btn-excel">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        EXPORT TO EXCEL
-                    </button>
                 </div>
             </div>
 
@@ -332,7 +489,7 @@
                 <form id="ticketForm" novalidate style="padding:28px; display:flex; flex-direction:column; gap:28px;">
                     <div>
                         <div class="section-heading">Tracking Info</div>
-                        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+                        <div class="form-grid-3">
                             <div>
                                 <div class="label" style="margin-bottom:7px;">Ticket No</div>
                                 <input type="text" required id="ticketNoInput" name="ticketNo" class="input">
@@ -369,7 +526,7 @@
 
                     <div>
                         <div class="section-heading">Client Info</div>
-                        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+                        <div class="form-grid-3">
                             <div>
                                 <div class="label" style="margin-bottom:7px;">Customer Name</div>
                                 <input type="text" name="name" required class="input">
@@ -408,7 +565,7 @@
 
                     <div>
                         <div class="section-heading">Ticket Info</div>
-                        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+                        <div class="form-grid-3">
                             <div>
                                 <div class="label" style="margin-bottom:7px;">Type of Ticket</div>
                                 <select name="type" required class="input">
@@ -518,15 +675,20 @@
 
         <!-- ======= ADMIN PAGE ======= -->
         <section id="page-admin" class="hidden">
-            <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div class="page-header">
                 <div>
                     <div class="page-title">SYSTEM ADMINISTRATION</div>
                     <div class="page-subtitle">Core System Controls</div>
                 </div>
                 <!-- FIX: Export button now calls proper Excel export -->
+                <button onclick="downloadExcel()"
+                    class="btn btn-excel">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    EXPORT TO EXCEL
+                </button>
             </div>
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+            <div class="admin-grid">
                 <div class="card">
                     <div class="card-header">
                         <div class="dot dot-red"></div>
@@ -589,9 +751,163 @@
             </div>
         </section>
 
+
+        <!-- ======= ANALYTICS PAGE ======= -->
+        <section id="page-analytics" class="hidden">
+            <div class="page-header">
+                <div>
+                    <div class="page-title">ANALYTICS &amp; INSIGHTS</div>
+                    <div class="page-subtitle">Advanced KPI Tracking &amp; Trend Analysis</div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <select id="analytics-period" onchange="renderAnalytics()" class="input btn-sm" style="min-height:36px;font-size:11px;width:auto;">
+                        <option value="7">Last 7 Days</option>
+                        <option value="30" selected>Last 30 Days</option>
+                        <option value="90">Last 90 Days</option>
+                        <option value="all">All Time</option>
+                    </select>
+                    <button onclick="downloadAnalyticsPDF()" class="btn btn-ghost btn-sm">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        PDF REPORT
+                    </button>
+                </div>
+            </div>
+
+            <!-- SLA / Escalation banner -->
+            <div id="escalation-banner" class="escalation-banner hidden">
+                <div class="dot dot-red" style="width:10px;height:10px;animation:pulse-dot 1.5s infinite;"></div>
+                <span style="font-family:var(--font-mono);font-size:11px;color:var(--red);font-weight:700;" id="escalation-msg">0 CRITICAL TICKETS REQUIRE IMMEDIATE ATTENTION</span>
+            </div>
+
+            <!-- KPI Summary Row -->
+            <div class="stats-grid" style="margin-bottom:24px;">
+                <div class="card stat-card" style="--stripe-color:var(--accent);">
+                    <div class="label">Resolution Rate</div>
+                    <div class="stat-num" id="an-res-rate" style="color:var(--accent);">--%</div>
+                </div>
+                <div class="card stat-card" style="--stripe-color:var(--blue);">
+                    <div class="label">Avg Handle Time</div>
+                    <div class="stat-num" id="an-aht" style="color:var(--blue);">--</div>
+                </div>
+                <div class="card stat-card" style="--stripe-color:var(--orange);">
+                    <div class="label">Reopen Rate</div>
+                    <div class="stat-num" id="an-reopen" style="color:var(--orange);">--%</div>
+                </div>
+                <div class="card stat-card" style="--stripe-color:var(--purple);">
+                    <div class="label">Peak Hour</div>
+                    <div class="stat-num" id="an-peak" style="color:var(--purple);font-size:1.4rem;">--:--</div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="analytics-grid" style="margin-bottom:24px;">
+                <div class="card" style="grid-column:1/-1">
+                    <div class="card-header">
+                        <div class="dot dot-green"></div>
+                        <span class="label">Daily Ticket Volume (Trend)</span>
+                    </div>
+                    <div style="padding:20px;height:260px;">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div class="dot dot-amber"></div>
+                        <span class="label">Resolution Time Distribution</span>
+                    </div>
+                    <div style="padding:20px;height:240px;">
+                        <canvas id="tatDistChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div class="dot dot-red"></div>
+                        <span class="label">Severity Breakdown</span>
+                    </div>
+                    <div style="padding:20px;height:240px;">
+                        <canvas id="severityChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div class="dot dot-green"></div>
+                        <span class="label">Channel Distribution</span>
+                    </div>
+                    <div style="padding:20px;height:240px;">
+                        <canvas id="channelChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SLA Tracker Table -->
+            <div class="card">
+                <div class="card-header" style="justify-content:space-between;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <div class="dot dot-red" style="animation:pulse-dot 2s infinite;"></div>
+                        <span class="label" style="color:var(--red);">SLA BREACH WATCH — Critical &amp; Pending</span>
+                    </div>
+                    <span id="sla-table-count" class="label">0 TICKETS</span>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>Ticket #</th><th>Client</th><th>Branch</th><th>Severity</th><th>Issued</th><th>Age</th><th style="text-align:right;">Status</th>
+                        </tr></thead>
+                        <tbody id="sla-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ======= AUDIT TRAIL PAGE ======= -->
+        <section id="page-audit" class="hidden">
+            <div class="page-header">
+                <div>
+                    <div class="page-title">AUDIT TRAIL</div>
+                    <div class="page-subtitle">System Activity &amp; Change Log</div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <div class="search-wrap" style="width:220px;">
+                        <svg class="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="text" id="audit-search" class="input" placeholder="Search audit log..." oninput="filterAuditLog()" style="padding:6px 10px 6px 28px !important;font-size:11px;min-height:36px;">
+                    </div>
+                    <button onclick="exportAuditLog()" class="btn btn-excel btn-sm">EXPORT LOG</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header" style="justify-content:space-between;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <div class="dot dot-amber"></div>
+                        <span class="label">Activity Stream</span>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <select id="audit-filter-type" onchange="filterAuditLog()" class="input" style="min-height:32px;font-size:10px;width:auto;padding:4px 10px !important;">
+                            <option value="all">ALL EVENTS</option>
+                            <option value="ticket">TICKET OPS</option>
+                            <option value="status">STATUS CHANGE</option>
+                            <option value="user">USER MGMT</option>
+                            <option value="export">EXPORTS</option>
+                            <option value="login">AUTH</option>
+                        </select>
+                        <button onclick="clearAuditLog()" style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);background:none;border:none;cursor:pointer;letter-spacing:0.08em;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-muted)'">[CLEAR]</button>
+                    </div>
+                </div>
+                <div id="audit-log-container" style="padding:16px 20px;max-height:600px;overflow-y:auto;">
+                    <div style="text-align:center;padding:32px;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">AUDIT LOG LOADING...</div>
+                </div>
+                <div style="padding:10px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+                    <span class="label">TOTAL EVENTS: <span id="audit-total-count" style="color:var(--accent);font-weight:700;">0</span></span>
+                    <span class="label" id="audit-session-label">SESSION: <span style="color:var(--text-dim);" id="audit-session-user">--</span></span>
+                </div>
+            </div>
+        </section>
+
     </main>
 </div>
-
 <!-- =============================================
      SCRIPTS — order matters!
      ① supabase (already in <head>)
