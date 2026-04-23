@@ -90,6 +90,19 @@ function initializeAppData() {
     if (ticketForm) ticketForm.onsubmit = handleFormSubmit;
 
     setInterval(checkSession, 30000);
+
+    // ── v2.0: Show top bar, set user in audit label ──
+    const topBar = document.getElementById('top-bar');
+    if (topBar) topBar.classList.remove('hidden');
+
+    // Log session start
+    logAudit('SESSION_START', `User ${localStorage.getItem('username')||'UNKNOWN'} logged in`, 'login');
+    updateAuditCount();
+
+    // Periodic SLA alerting every 5 min
+    setInterval(() => {
+        if (cachedTickets.length > 0) updateExtendedKPIs(cachedTickets);
+    }, 300000);
 }
 
 // =============================================
@@ -131,6 +144,8 @@ async function handleLogin() {
         showDashboard();
         checkAdminAccess();
         initializeAppData();
+        // Notify after data loads
+        setTimeout(() => pushNotif(`🔐 Logged in as ${data.username}`, 'info'), 1500);
 
     } catch (err) {
         const msg = err.message === 'Invalid Credentials' ? 'INVALID CREDENTIALS' : 'CONNECTION ERROR — RETRY';
@@ -171,6 +186,7 @@ function forceLogout() {
 
 function handleLogout() {
     if (confirm('Are you sure you want to logout?')) {
+        logAudit('SESSION_END', `User ${localStorage.getItem('username')||'UNKNOWN'} logged out`, 'login');
         localStorage.removeItem('isLoggedIn');
         localStorage.removeItem('activePage');
         location.reload();
@@ -210,20 +226,36 @@ function showPage(page) {
     }
 
     localStorage.setItem('activePage', page);
-    ['dashboard','summary','report','kiosk','admin'].forEach(p => {
+    ['dashboard','summary','report','kiosk','analytics','audit','admin'].forEach(p => {
         const pageEl = document.getElementById(`page-${p}`);
         const navEl  = document.getElementById(`nav-${p}`);
         if (pageEl) pageEl.classList.toggle('hidden', p !== page);
         if (navEl)  navEl.classList.toggle('active',  p === page);
     });
-    if (page === 'report') updateDateInput();
-    if (page === 'admin')  renderUserTable();
+    if (page === 'report')    updateDateInput();
+    if (page === 'admin')     renderUserTable();
+    if (page === 'analytics') renderAnalytics();
+    if (page === 'audit')     { renderAuditLog(); updateAuditCount(); }
     // Close mobile sidebar
-    document.getElementById('sidebar')?.classList.remove('open');
+    closeSidebar();
 }
 
 function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
+    const sidebar   = document.getElementById('sidebar');
+    const overlay   = document.getElementById('sidebar-overlay');
+    const hamburger = document.getElementById('hamburger-btn');
+    const isOpen    = sidebar.classList.toggle('open');
+    overlay.classList.toggle('visible', isOpen);
+    hamburger.setAttribute('aria-expanded', isOpen);
+}
+
+function closeSidebar() {
+    const sidebar   = document.getElementById('sidebar');
+    const overlay   = document.getElementById('sidebar-overlay');
+    const hamburger = document.getElementById('hamburger-btn');
+    sidebar.classList.remove('open');
+    overlay.classList.remove('visible');
+    if (hamburger) hamburger.setAttribute('aria-expanded', 'false');
 }
 
 // Auto-refresh admin table every 5 min if visible
@@ -397,6 +429,12 @@ async function updateTicketStatus(ticketNo, newStatus) {
         renderDashboard(cachedTickets);
         updateSummary(cachedTickets);
         showToast(`✓ STATUS → ${newStatus.toUpperCase()}`);
+        logAudit('STATUS_CHANGED', `Ticket #${ticketNo} updated to ${newStatus.toUpperCase()}`, 'status');
+        // Push notification for resolution
+        if (newStatus.toUpperCase() === 'RESOLVED') {
+            const t = cachedTickets.find(x => String(x.TicketNo) === String(ticketNo));
+            if (t) pushNotif(`✓ Ticket #${ticketNo} (${(t.Name||'').toUpperCase()}) marked RESOLVED`, 'info', ticketNo);
+        }
 
     } catch (err) {
         console.error('Update Error:', err);
@@ -456,6 +494,12 @@ function renderDashboard(data) {
     updateChart(catCounts);
     updateBranchChart(branchCounts);
     updateEngagementChart(engCounts);
+
+    // v2.0 extras
+    updateExtendedKPIs(data);
+    // Update analytics page if visible
+    const analyticsPage = document.getElementById('page-analytics');
+    if (analyticsPage && !analyticsPage.classList.contains('hidden')) renderAnalytics();
 }
 
 // XSS helper
@@ -507,6 +551,11 @@ function populateTable(dataToDisplay) {
     }).join('');
 }
 
+// v2.0: alias populateTable → clickable rows version
+// (override after definition)
+const _origPopulateTable = populateTable;
+populateTable = function(dataToDisplay) { populateTableClickable(dataToDisplay); };
+
 // =============================================
 // CHARTS
 // =============================================
@@ -534,8 +583,8 @@ function updateChart(counts) {
         options: {
             responsive: true, maintainAspectRatio: false,
             scales: {
-                y: { grid: { color: gridColor }, ticks: { color: tickColor, font: { family: "'Space Mono'" } } },
-                x: { grid: { display: false },   ticks: { color: tickColor, font: { size: 9, family: "'Space Mono'" } } }
+                y: { grid: { color: gridColor }, ticks: { color: tickColor, font: { family: "'JetBrains Mono'" } } },
+                x: { grid: { display: false },   ticks: { color: tickColor, font: { size: 9, family: "'JetBrains Mono'" } } }
             },
             plugins: { legend: { display: false } }
         }
@@ -559,8 +608,8 @@ function updateBranchChart(counts) {
             indexAxis: 'y',
             responsive: true, maintainAspectRatio: false,
             scales: {
-                x: { grid: { color: gridColor }, ticks: { color: tickColor, font: { family: "'Space Mono'" } } },
-                y: { grid: { display: false },   ticks: { color: tickColor, font: { size: 9, family: "'Space Mono'" } } }
+                x: { grid: { color: gridColor }, ticks: { color: tickColor, font: { family: "'JetBrains Mono'" } } },
+                y: { grid: { display: false },   ticks: { color: tickColor, font: { size: 9, family: "'JetBrains Mono'" } } }
             },
             plugins: { legend: { display: false } }
         }
@@ -587,7 +636,7 @@ function updateEngagementChart(counts) {
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: { color: tickColor, font: { size: 10, family: "'Space Mono'" }, padding: 16 }
+                    labels: { color: tickColor, font: { size: 10, family: "'JetBrains Mono'" }, padding: 16 }
                 }
             },
             cutout: '68%'
@@ -646,6 +695,8 @@ async function handleFormSubmit(e) {
         if (error) throw new Error(error.message);
 
         showToast('✓ UPLOAD COMPLETE');
+        logAudit('TICKET_CREATED', `New ticket submitted via form`, 'ticket');
+        pushNotif('✓ New ticket uploaded successfully', 'info');
         form.reset();
         updateDateInput();
         loadData();
@@ -826,6 +877,7 @@ async function toggleUserStatus(username, currentStatus) {
     if (error) { showToast('✗ TOGGLE FAILED', true); addLog(`ERROR: TOGGLE_FAILED for ${username}`); return; }
     addLog(`STATUS_UPDATED: ${username} → ${newStatus}`);
     showToast(`✓ ${username} → ${newStatus}`);
+    logAudit('USER_STATUS_CHANGED', `${username} status changed to ${newStatus}`, 'user');
     renderUserTable();
 }
 
@@ -950,6 +1002,7 @@ function downloadExcel() {
         XLSX.writeFile(wb, filename);
 
         showToast(`✓ EXPORTED ${totalTickets} RECORDS`);
+        logAudit('EXPORT_EXCEL', `${totalTickets} tickets exported to ${filename}`, 'export');
         addLog(`EXPORT_SUCCESS: ${totalTickets} rows → ${filename}`);
 
     } catch (err) {
@@ -998,6 +1051,690 @@ function showToast(message, isError = false) {
     setTimeout(() => toast?.remove(), 2500);
 }
 
+
+// =============================================
+// v2.0 — EXTENDED GLOBAL STATE
+// =============================================
+let auditLog         = [];   // In-memory audit log
+let notifications    = [];   // In-memory notification queue
+let ticketNotes      = {};   // { ticketNo: [{ user, note, ts }] }
+let currentTicket    = null; // Ticket currently open in modal
+let activeFilter     = 'all';
+let trendChart       = null;
+let tatDistChart     = null;
+let severityChart    = null;
+let channelChart     = null;
+
+// =============================================
+// AUDIT TRAIL — Append + Render
+// =============================================
+function logAudit(action, detail, type = 'ticket') {
+    const entry = {
+        id:        Date.now() + Math.random(),
+        action,
+        detail,
+        type,      // ticket | status | user | export | login | system
+        user:      localStorage.getItem('username') || 'SYSTEM',
+        ts:        new Date().toISOString(),
+        tsDisplay: new Date().toLocaleString('en-PH', { hour12: false }),
+    };
+    auditLog.unshift(entry);
+    if (auditLog.length > 500) auditLog.pop();
+    renderAuditLog();
+    updateAuditCount();
+}
+
+function renderAuditLog(filtered) {
+    const container = document.getElementById('audit-log-container');
+    if (!container) return;
+    const entries = filtered || auditLog;
+    if (entries.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:32px;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">NO AUDIT EVENTS</div>';
+        return;
+    }
+    const iconMap = { ticket:'📋', status:'🔄', user:'👤', export:'📊', login:'🔐', system:'⚙️' };
+    const classMap = { ticket:'', status:'orange', user:'blue', export:'', login:'', system:'red' };
+    container.innerHTML = entries.map(e => `
+        <div class="audit-entry" data-type="${e.type}" id="ae-${e.id}">
+            <div class="audit-icon ${classMap[e.type] || ''}">${iconMap[e.type] || '📌'}</div>
+            <div class="audit-body">
+                <div class="audit-action">${escapeHtml(e.action)}</div>
+                <div class="audit-detail">${escapeHtml(e.detail)}</div>
+                <div class="audit-timestamp">[${e.tsDisplay}] · USER: ${escapeHtml(e.user)}</div>
+            </div>
+        </div>`).join('');
+}
+
+function filterAuditLog() {
+    const typeFilter = document.getElementById('audit-filter-type')?.value || 'all';
+    const searchVal  = (document.getElementById('audit-search')?.value || '').toLowerCase();
+    let filtered = auditLog;
+    if (typeFilter !== 'all') filtered = filtered.filter(e => e.type === typeFilter);
+    if (searchVal) filtered = filtered.filter(e =>
+        e.action.toLowerCase().includes(searchVal) || e.detail.toLowerCase().includes(searchVal)
+    );
+    renderAuditLog(filtered);
+    updateAuditCount(filtered.length);
+}
+
+function updateAuditCount(count) {
+    const el = document.getElementById('audit-total-count');
+    if (el) el.textContent = (count !== undefined ? count : auditLog.length);
+    const sessionEl = document.getElementById('audit-session-user');
+    if (sessionEl) sessionEl.textContent = localStorage.getItem('username') || '--';
+}
+
+function clearAuditLog() {
+    if (!confirm('Clear audit log from this session?')) return;
+    auditLog = [];
+    renderAuditLog();
+    updateAuditCount();
+}
+
+function exportAuditLog() {
+    if (auditLog.length === 0) { showToast('⚠ AUDIT LOG EMPTY', true); return; }
+    const wsData = [['Timestamp','Action','Detail','User','Type']];
+    auditLog.forEach(e => wsData.push([e.tsDisplay, e.action, e.detail, e.user, e.type]));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [{ wch:22 },{ wch:30 },{ wch:50 },{ wch:18 },{ wch:12 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Audit Log');
+    XLSX.writeFile(wb, `AUDIT_LOG_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showToast('✓ AUDIT LOG EXPORTED');
+    logAudit('EXPORT_AUDIT_LOG', `${auditLog.length} events exported`, 'export');
+}
+
+// =============================================
+// NOTIFICATIONS — Push + Render
+// =============================================
+function pushNotif(msg, type = 'info', ticketNo = null) {
+    // type: info | warning | critical
+    const n = { id: Date.now() + Math.random(), msg, type, ticketNo, ts: new Date(), read: false };
+    notifications.unshift(n);
+    if (notifications.length > 50) notifications.pop();
+    renderNotifPanel();
+    updateNotifBadge();
+}
+
+function renderNotifPanel() {
+    const list = document.getElementById('notif-list');
+    if (!list) return;
+    const unread = notifications.filter(n => !n.read);
+    if (notifications.length === 0) {
+        list.innerHTML = '<div style="padding:24px;text-align:center;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">NO NOTIFICATIONS</div>';
+        return;
+    }
+    const dotColor = { info:'var(--accent)', warning:'var(--orange)', critical:'var(--red)' };
+    list.innerHTML = notifications.map(n => `
+        <div class="notif-item ${n.read ? '' : (n.type === 'critical' ? 'unread-red' : 'unread')}" onclick="readNotif(${n.id})">
+            <div class="notif-dot" style="background:${dotColor[n.type]||'var(--accent)'}; ${n.type==='critical'?'animation:pulse-dot 1.5s infinite':''}"></div>
+            <div>
+                <div class="notif-msg">${escapeHtml(n.msg)}</div>
+                <div class="notif-time">${timeAgo(n.ts)}</div>
+            </div>
+        </div>`).join('');
+}
+
+function readNotif(id) {
+    const n = notifications.find(n => n.id === id);
+    if (n) { n.read = true; if (n.ticketNo) openTicketModal(n.ticketNo); }
+    renderNotifPanel();
+    updateNotifBadge();
+}
+
+function updateNotifBadge() {
+    const count  = notifications.filter(n => !n.read).length;
+    const badge  = document.getElementById('notif-badge');
+    if (badge) { badge.style.display = count > 0 ? 'flex' : 'none'; badge.textContent = count > 9 ? '9+' : count; }
+}
+
+function toggleNotifPanel() {
+    const panel = document.getElementById('notif-panel');
+    if (!panel) return;
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) {
+        // mark all as read when opened
+        notifications.forEach(n => n.read = true);
+        renderNotifPanel();
+        updateNotifBadge();
+    }
+}
+
+function clearAllNotifs() {
+    notifications = [];
+    renderNotifPanel();
+    updateNotifBadge();
+    const panel = document.getElementById('notif-panel');
+    if (panel) panel.classList.remove('open');
+}
+
+// Close notif panel + search when clicking outside
+document.addEventListener('click', e => {
+    const panel = document.getElementById('notif-panel');
+    const btn   = document.getElementById('notif-btn');
+    if (panel && !panel.contains(e.target) && e.target !== btn && !btn?.contains(e.target)) {
+        panel.classList.remove('open');
+    }
+    const sp = document.getElementById('search-results-panel');
+    const gs = document.getElementById('global-search');
+    if (sp && !sp.contains(e.target) && e.target !== gs) sp.classList.remove('open');
+});
+
+// =============================================
+// GLOBAL SEARCH
+// =============================================
+function handleGlobalSearch(val) {
+    const panel = document.getElementById('search-results-panel');
+    if (!panel) return;
+    if (!val || val.length < 2) { panel.classList.remove('open'); return; }
+    const q = val.toLowerCase();
+    const results = cachedTickets.filter(t =>
+        String(t.TicketNo).toLowerCase().includes(q) ||
+        (t.Name || '').toLowerCase().includes(q) ||
+        (t.Branch || '').toLowerCase().includes(q) ||
+        (t.Type || '').toLowerCase().includes(q) ||
+        (t.Concerns || '').toLowerCase().includes(q)
+    ).slice(0, 8);
+    if (results.length === 0) {
+        panel.innerHTML = '<div style="padding:16px;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);text-align:center;">NO RESULTS</div>';
+    } else {
+        const sevColor = { CRITICAL:'var(--red)', HIGH:'var(--orange)', MODERATE:'var(--yellow)', LOW:'var(--blue)' };
+        panel.innerHTML = results.map(t => `
+            <div class="search-result-item" onclick="openTicketModal(${t.TicketNo})">
+                <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);min-width:44px;">#${t.TicketNo}</div>
+                <div style="flex:1;">
+                    <div style="font-size:12px;font-weight:600;">${escapeHtml((t.Name||'---').toUpperCase())}</div>
+                    <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);">${escapeHtml(t.Branch||'---')} · ${escapeHtml(t.Type||'---')}</div>
+                </div>
+                <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:${sevColor[(t.SeverityLevel||'').toUpperCase()]||'var(--text-dim)'};">${(t.SeverityLevel||'').toUpperCase()}</div>
+            </div>`).join('');
+    }
+    panel.classList.add('open');
+}
+
+function openSearchPanel() {
+    const gs = document.getElementById('global-search');
+    if (gs && gs.value.length >= 2) handleGlobalSearch(gs.value);
+}
+
+// =============================================
+// FILTER CHIPS — Dashboard
+// =============================================
+function applyFilter(filter, btn) {
+    activeFilter = filter;
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    let filtered = [...cachedTickets];
+    const today = new Date().toISOString().split('T')[0];
+    if (filter === 'pending')  filtered = filtered.filter(t => (t.Status||'').toLowerCase() === 'pending');
+    if (filter === 'resolved') filtered = filtered.filter(t => (t.Status||'').toLowerCase() === 'resolved');
+    if (filter === 'critical') filtered = filtered.filter(t => (t.SeverityLevel||'').toUpperCase() === 'CRITICAL');
+    if (filter === 'today')    filtered = filtered.filter(t => t.DateIssued && t.DateIssued.startsWith(today));
+    filtered.sort((a, b) => Number(b.TicketNo) - Number(a.TicketNo));
+    populateTable(filtered.slice(0, 50));
+    const label = document.getElementById('filter-count-label');
+    if (label) label.textContent = `${filtered.length} RECORDS`;
+    logAudit('FILTER_APPLIED', `Filter: ${filter.toUpperCase()} — ${filtered.length} records`, 'system');
+}
+
+// =============================================
+// TICKET DETAIL MODAL
+// =============================================
+function openTicketModal(ticketNo) {
+    const t = cachedTickets.find(x => String(x.TicketNo) === String(ticketNo));
+    if (!t) { showToast('⚠ TICKET NOT FOUND', true); return; }
+    currentTicket = t;
+    const modal = document.getElementById('ticket-modal');
+
+    // Populate fields
+    document.getElementById('modal-ticket-no').textContent  = '#' + (t.TicketNo || '---');
+    document.getElementById('modal-name').textContent       = (t.Name || '---').toUpperCase();
+    document.getElementById('modal-branch').textContent     = t.Branch || '---';
+    document.getElementById('modal-channel').textContent    = t.Channel || '---';
+    document.getElementById('modal-type').textContent       = t.Type || '---';
+    document.getElementById('modal-engagement').textContent = t.Engagement || '---';
+    document.getElementById('modal-action').textContent     = t.Action || '---';
+    document.getElementById('modal-concern').textContent    = t.Concerns || '---';
+    document.getElementById('modal-assistance').textContent = t.Assistance || '---';
+    document.getElementById('modal-date-issued').textContent = t.DateIssued ? new Date(t.DateIssued).toLocaleString('en-PH',{hour12:false}) : '---';
+    document.getElementById('modal-pickup').textContent     = t.DatePickedUp ? new Date(t.DatePickedUp).toLocaleString('en-PH',{hour12:false}) : '---';
+    document.getElementById('modal-replied').textContent    = t.DateReplied ? new Date(t.DateReplied).toLocaleString('en-PH',{hour12:false}) : '---';
+
+    // Severity badge
+    const sevEl = document.getElementById('modal-severity');
+    if (sevEl) {
+        const sevColor = { CRITICAL:'var(--red)', HIGH:'var(--orange)', MODERATE:'var(--yellow)', LOW:'var(--blue)' };
+        sevEl.textContent = (t.SeverityLevel || 'LOW').toUpperCase();
+        sevEl.style.color = sevColor[(t.SeverityLevel||'low').toUpperCase()] || 'var(--blue)';
+        sevEl.style.fontWeight = '700';
+        sevEl.style.fontFamily = 'var(--font-mono)';
+    }
+
+    // Status badge
+    const sb = document.getElementById('modal-status-badge');
+    if (sb) {
+        const s = (t.Status || 'PENDING').toUpperCase();
+        sb.textContent = s;
+        sb.className = 'badge ' + (s === 'RESOLVED' ? 'badge-resolved' : s === 'BLOCKED' ? 'badge-blocked' : 'badge-pending');
+    }
+
+    // TAT calculation
+    const tatEl    = document.getElementById('modal-tat');
+    const slaBar   = document.getElementById('modal-sla-bar');
+    if (t.DateIssued && t.DateReplied) {
+        const mins = (new Date(t.DateReplied) - new Date(t.DateIssued)) / 60000;
+        const hrs  = mins / 60;
+        if (tatEl) tatEl.textContent = hrs >= 1 ? hrs.toFixed(1) + 'h' : Math.round(mins) + 'm';
+        // SLA target: CRITICAL=2h, HIGH=4h, MODERATE=8h, LOW=24h
+        const slaTarget = { CRITICAL:120, HIGH:240, MODERATE:480, LOW:1440 };
+        const target = slaTarget[(t.SeverityLevel||'LOW').toUpperCase()] || 480;
+        const pct = Math.min((mins / target) * 100, 100);
+        if (slaBar) { slaBar.style.width = pct + '%'; slaBar.style.background = pct > 90 ? 'var(--red)' : pct > 70 ? 'var(--orange)' : 'var(--accent)'; }
+    } else {
+        if (tatEl) tatEl.textContent = 'OPEN';
+        if (slaBar) slaBar.style.width = '0%';
+    }
+
+    // Interaction notes
+    renderModalNotes(ticketNo);
+    if (modal) modal.classList.add('open');
+    logAudit('TICKET_VIEWED', `Ticket #${ticketNo} — ${(t.Name||'---').toUpperCase()} opened for review`, 'ticket');
+}
+
+function closeTicketModal() {
+    const modal = document.getElementById('ticket-modal');
+    if (modal) modal.classList.remove('open');
+    const ni = document.getElementById('note-input');
+    if (ni) ni.value = '';
+    currentTicket = null;
+}
+
+function modalChangeStatus(newStatus) {
+    if (!currentTicket) return;
+    handleStatusChange({ value: newStatus, className: 'status-select', classList: { add:()=>{}, remove:()=>{} } }, currentTicket.TicketNo);
+    // Update modal badge immediately
+    const sb = document.getElementById('modal-status-badge');
+    if (sb) { sb.textContent = newStatus; sb.className = 'badge ' + (newStatus === 'RESOLVED' ? 'badge-resolved' : newStatus === 'BLOCKED' ? 'badge-blocked' : 'badge-pending'); }
+    logAudit('STATUS_CHANGED', `Ticket #${currentTicket.TicketNo} → ${newStatus}`, 'status');
+    closeTicketModal();
+}
+
+function copyTicketInfo() {
+    if (!currentTicket) return;
+    const t = currentTicket;
+    const text = `TICKET #${t.TicketNo}
+Client: ${t.Name||'---'}
+Branch: ${t.Branch||'---'}
+Type: ${t.Type||'---'}
+Status: ${t.Status||'---'}
+Severity: ${t.SeverityLevel||'---'}
+Concern: ${t.Concerns||'---'}`;
+    navigator.clipboard?.writeText(text).then(() => showToast('✓ COPIED TO CLIPBOARD')).catch(() => showToast('⚠ COPY FAILED', true));
+}
+
+// ── Interaction Notes ──
+function renderModalNotes(ticketNo) {
+    const container = document.getElementById('modal-interaction-log');
+    const countEl   = document.getElementById('modal-log-count');
+    const notes     = ticketNotes[ticketNo] || [];
+    if (countEl) countEl.textContent = `${notes.length} NOTE${notes.length !== 1 ? 'S' : ''}`;
+    if (!container) return;
+    if (notes.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:16px;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">NO NOTES YET</div>';
+        return;
+    }
+    container.innerHTML = notes.map(n => `
+        <div class="interaction-entry">
+            <div class="interaction-meta">
+                <span style="color:var(--accent);">${escapeHtml(n.user)}</span>
+                <span>·</span>
+                <span>${n.tsDisplay}</span>
+            </div>
+            <div>${escapeHtml(n.note)}</div>
+        </div>`).join('');
+    container.scrollTop = container.scrollHeight;
+}
+
+function addTicketNote() {
+    if (!currentTicket) return;
+    const inp  = document.getElementById('note-input');
+    const note = (inp?.value || '').trim();
+    if (!note) { showToast('⚠ NOTE CANNOT BE EMPTY', true); return; }
+    const ticketNo = currentTicket.TicketNo;
+    if (!ticketNotes[ticketNo]) ticketNotes[ticketNo] = [];
+    const entry = {
+        user:      localStorage.getItem('username') || 'UNKNOWN',
+        note,
+        ts:        new Date().toISOString(),
+        tsDisplay: new Date().toLocaleString('en-PH', { hour12: false }),
+    };
+    ticketNotes[ticketNo].push(entry);
+    if (inp) inp.value = '';
+    renderModalNotes(ticketNo);
+    showToast('✓ NOTE ADDED');
+    logAudit('NOTE_ADDED', `Ticket #${ticketNo}: "${note.slice(0,60)}..."`, 'ticket');
+}
+
+// Make ticket rows clickable in the Live Database table
+function populateTableClickable(dataToDisplay) {
+    const reportBody = document.getElementById('daily-report-body');
+    if (!reportBody) return;
+    if (!dataToDisplay || dataToDisplay.length === 0) {
+        reportBody.innerHTML = `<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted);font-family:var(--font-mono);font-size:11px;">NO DATA FOUND</td></tr>`;
+        return;
+    }
+    reportBody.innerHTML = dataToDisplay.map(t => {
+        const safeName   = escapeHtml((t.Name   || '---').toString());
+        const safeBranch = escapeHtml((t.Branch || '---').toString());
+        const tStatus    = (t.Status        || 'PENDING').toString().toUpperCase();
+        const tSeverity  = (t.SeverityLevel || 'LOW').toString().toUpperCase();
+        let sevClass = 'sev-low';
+        if (tSeverity === 'CRITICAL') sevClass = 'sev-critical';
+        else if (tSeverity === 'HIGH') sevClass = 'sev-high';
+        else if (tSeverity === 'MODERATE') sevClass = 'sev-moderate';
+        const colorClass = tStatus === 'RESOLVED' ? 'select-resolved' : tStatus === 'BLOCKED' ? 'select-blocked' : 'select-pending';
+        const statusDropdown = `<select class="status-select ${colorClass}" onchange="handleStatusChange(this, '${t.TicketNo}')" onclick="event.stopPropagation()">${['PENDING','RESOLVED','BLOCKED'].map(opt=>`<option value="${opt}" ${tStatus===opt?'selected':''}>${opt}</option>`).join('')}</select>`;
+        return `<tr style="cursor:pointer;" onclick="openTicketModal('${t.TicketNo}')">
+            <td style="font-family:var(--font-mono);color:var(--text-muted);font-size:11px;">#${t.TicketNo||'---'}</td>
+            <td style="font-weight:600;text-transform:uppercase;">${safeName}</td>
+            <td style="color:var(--text-dim);font-size:12px;">${safeBranch}</td>
+            <td class="${sevClass}" style="font-family:var(--font-mono);font-size:11px;">${tSeverity}</td>
+            <td style="text-align:right;">${statusDropdown}</td>
+        </tr>`;
+    }).join('');
+}
+
+// =============================================
+// ANALYTICS PAGE
+// =============================================
+function renderAnalytics() {
+    if (!cachedTickets.length) return;
+    const periodVal = document.getElementById('analytics-period')?.value || '30';
+    let filtered = cachedTickets;
+    if (periodVal !== 'all') {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - parseInt(periodVal));
+        filtered = cachedTickets.filter(t => t.DateIssued && new Date(t.DateIssued) >= cutoff);
+    }
+
+    // Resolution rate
+    const total    = filtered.length;
+    const resolved = filtered.filter(t => (t.Status||'').toLowerCase() === 'resolved').length;
+    const pending  = filtered.filter(t => (t.Status||'').toLowerCase() === 'pending').length;
+    const critical = filtered.filter(t => (t.SeverityLevel||'').toUpperCase() === 'CRITICAL' && (t.Status||'').toLowerCase() !== 'resolved').length;
+    const resRate  = total > 0 ? ((resolved / total) * 100).toFixed(1) : '0.0';
+    const escalatedCount = filtered.filter(t => (t.Action||'').toUpperCase() === 'ESCALATED').length;
+
+    const anResEl   = document.getElementById('an-res-rate');
+    const anReopenEl = document.getElementById('an-reopen');
+    if (anResEl)    animateValue(anResEl,   parseFloat(anResEl.textContent)   || 0, parseFloat(resRate));
+    if (anReopenEl) animateValue(anReopenEl, parseFloat(anReopenEl.textContent) || 0, total > 0 ? parseFloat(((escalatedCount/total)*100).toFixed(1)) : 0);
+    if (anResEl) setTimeout(() => { anResEl.textContent = resRate + '%'; }, 720);
+    if (anReopenEl) setTimeout(() => { anReopenEl.textContent = ((escalatedCount/total)*100).toFixed(1) + '%'; }, 720);
+
+    // AHT
+    const resolvedWithTime = filtered.filter(t => (t.Status||'').toLowerCase() === 'resolved' && t.DateIssued && t.DateReplied);
+    const totalMins = resolvedWithTime.reduce((sum, t) => {
+        const d = (new Date(t.DateReplied) - new Date(t.DateIssued)) / 60000;
+        return sum + (d > 0 ? d : 0);
+    }, 0);
+    const avgMins = resolvedWithTime.length ? totalMins / resolvedWithTime.length : 0;
+    const ahtEl = document.getElementById('an-aht');
+    if (ahtEl) ahtEl.textContent = avgMins >= 60 ? (avgMins/60).toFixed(1) + 'h' : Math.round(avgMins) + 'm';
+
+    // Peak hour
+    const hourCounts = {};
+    filtered.forEach(t => {
+        if (t.DateIssued) { const h = new Date(t.DateIssued).getHours(); hourCounts[h] = (hourCounts[h]||0)+1; }
+    });
+    const peakH = Object.entries(hourCounts).sort((a,b)=>b[1]-a[1])[0];
+    const peakEl = document.getElementById('an-peak');
+    if (peakEl) peakEl.textContent = peakH ? `${String(peakH[0]).padStart(2,'0')}:00` : '--:--';
+
+    // Escalation banner
+    const banner = document.getElementById('escalation-banner');
+    const msg    = document.getElementById('escalation-msg');
+    if (banner && msg) {
+        if (critical > 0) { banner.classList.remove('hidden'); msg.textContent = `${critical} CRITICAL TICKET${critical>1?'S':''} REQUIRE IMMEDIATE ATTENTION`; }
+        else banner.classList.add('hidden');
+    }
+
+    // SLA alert chip in topbar
+    const slaChip  = document.getElementById('sla-alert-chip');
+    const slaCount = document.getElementById('sla-count');
+    if (slaChip && slaCount) {
+        if (critical > 0) { slaChip.classList.remove('hidden'); slaCount.textContent = critical; }
+        else slaChip.classList.add('hidden');
+    }
+
+    // Charts
+    buildTrendChart(filtered);
+    buildTatDistChart(filtered);
+    buildSeverityChart(filtered);
+    buildChannelChart(filtered);
+    buildSlaTable(filtered);
+}
+
+function buildTrendChart(data) {
+    const ctx = document.getElementById('trendChart');
+    if (!ctx) return;
+    const { gridColor, tickColor } = getChartDefaults();
+    // Group by date
+    const dateCounts = {};
+    data.forEach(t => {
+        if (t.DateIssued) {
+            const d = t.DateIssued.split('T')[0];
+            dateCounts[d] = (dateCounts[d]||0)+1;
+        }
+    });
+    const sorted = Object.entries(dateCounts).sort((a,b)=>a[0].localeCompare(b[0])).slice(-30);
+    if (trendChart) trendChart.destroy();
+    trendChart = new Chart(ctx.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: sorted.map(([d]) => d.slice(5)),
+            datasets: [{
+                label: 'Tickets',
+                data: sorted.map(([,v]) => v),
+                borderColor: '#00ff9d',
+                backgroundColor: 'rgba(0,255,157,0.07)',
+                tension: 0.4, fill: true,
+                pointBackgroundColor: '#00ff9d', pointRadius: 3
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                y: { grid:{ color:gridColor }, ticks:{ color:tickColor, font:{ family:"'JetBrains Mono'", size:10 } } },
+                x: { grid:{ display:false }, ticks:{ color:tickColor, font:{ size:9, family:"'JetBrains Mono'" }, maxRotation:45 } }
+            },
+            plugins: { legend:{ display:false } }
+        }
+    });
+}
+
+function buildTatDistChart(data) {
+    const ctx = document.getElementById('tatDistChart');
+    if (!ctx) return;
+    const { gridColor, tickColor } = getChartDefaults();
+    const buckets = { '<1h':0, '1-4h':0, '4-8h':0, '8-24h':0, '>24h':0 };
+    data.filter(t => t.DateIssued && t.DateReplied).forEach(t => {
+        const h = (new Date(t.DateReplied) - new Date(t.DateIssued)) / 3600000;
+        if (h < 1) buckets['<1h']++;
+        else if (h < 4) buckets['1-4h']++;
+        else if (h < 8) buckets['4-8h']++;
+        else if (h < 24) buckets['8-24h']++;
+        else buckets['>24h']++;
+    });
+    if (tatDistChart) tatDistChart.destroy();
+    tatDistChart = new Chart(ctx.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: Object.keys(buckets),
+            datasets: [{ label:'Tickets', data: Object.values(buckets), backgroundColor:['#00ff9d','#00e5c8','#ffc53d','#ff6b35','#ff4444'], borderRadius:5 }]
+        },
+        options: { responsive:true, maintainAspectRatio:false, scales:{ y:{grid:{color:gridColor},ticks:{color:tickColor,font:{family:"'JetBrains Mono'"}}}, x:{grid:{display:false},ticks:{color:tickColor,font:{family:"'JetBrains Mono'",size:10}}} }, plugins:{legend:{display:false}} }
+    });
+}
+
+function buildSeverityChart(data) {
+    const ctx = document.getElementById('severityChart');
+    if (!ctx) return;
+    const { tickColor } = getChartDefaults();
+    const counts = { CRITICAL:0, HIGH:0, MODERATE:0, LOW:0 };
+    data.forEach(t => { const s=(t.SeverityLevel||'LOW').toUpperCase(); if(counts[s]!==undefined) counts[s]++; });
+    if (severityChart) severityChart.destroy();
+    severityChart = new Chart(ctx.getContext('2d'), {
+        type: 'doughnut',
+        data: { labels:Object.keys(counts), datasets:[{ data:Object.values(counts), backgroundColor:['#ff4444','#ff6b35','#ffc53d','#3d9eff'], borderWidth:0 }] },
+        options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ color:tickColor, font:{ size:10, family:"'JetBrains Mono'" }, padding:12 } } }, cutout:'65%' }
+    });
+}
+
+function buildChannelChart(data) {
+    const ctx = document.getElementById('channelChart');
+    if (!ctx) return;
+    const { gridColor, tickColor } = getChartDefaults();
+    const counts = {};
+    data.forEach(t => { const c=t.Channel||'UNKNOWN'; counts[c]=(counts[c]||0)+1; });
+    const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+    if (channelChart) channelChart.destroy();
+    channelChart = new Chart(ctx.getContext('2d'), {
+        type:'bar',
+        data:{ labels:sorted.map(([k])=>k), datasets:[{ label:'Volume', data:sorted.map(([,v])=>v), backgroundColor:'#b47aff', borderRadius:5 }] },
+        options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, scales:{ x:{grid:{color:gridColor},ticks:{color:tickColor,font:{family:"'JetBrains Mono'"}}}, y:{grid:{display:false},ticks:{color:tickColor,font:{size:10,family:"'JetBrains Mono'"}}} }, plugins:{legend:{display:false}} }
+    });
+}
+
+function buildSlaTable(data) {
+    const tbody  = document.getElementById('sla-table-body');
+    const cntEl  = document.getElementById('sla-table-count');
+    if (!tbody) return;
+    const now = new Date();
+    // Show pending tickets sorted by age descending
+    const pending = data
+        .filter(t => (t.Status||'').toLowerCase() !== 'resolved' && t.DateIssued)
+        .sort((a,b) => new Date(a.DateIssued) - new Date(b.DateIssued))
+        .slice(0, 30);
+    if (cntEl) cntEl.textContent = `${pending.length} TICKETS`;
+    if (pending.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">ALL TICKETS RESOLVED ✓</td></tr>';
+        return;
+    }
+    const sevColor = { CRITICAL:'sev-critical', HIGH:'sev-high', MODERATE:'sev-moderate', LOW:'sev-low' };
+    tbody.innerHTML = pending.map(t => {
+        const issued = new Date(t.DateIssued);
+        const ageMins = (now - issued) / 60000;
+        const ageStr = ageMins >= 1440 ? (ageMins/1440).toFixed(1)+'d' : ageMins >= 60 ? (ageMins/60).toFixed(1)+'h' : Math.round(ageMins)+'m';
+        const isUrgent = (t.SeverityLevel||'').toUpperCase() === 'CRITICAL' && ageMins > 120;
+        return `<tr style="${isUrgent?'background:rgba(255,68,68,0.05);':''} cursor:pointer;" onclick="openTicketModal('${t.TicketNo}')">
+            <td style="font-family:var(--font-mono);color:var(--text-muted);font-size:11px;">#${t.TicketNo}</td>
+            <td style="font-weight:600;">${escapeHtml((t.Name||'---').toUpperCase())}</td>
+            <td style="color:var(--text-dim);font-size:12px;">${escapeHtml(t.Branch||'---')}</td>
+            <td class="${sevColor[(t.SeverityLevel||'LOW').toUpperCase()]}" style="font-family:var(--font-mono);font-size:11px;">${(t.SeverityLevel||'LOW').toUpperCase()}</td>
+            <td style="color:var(--text-dim);font-size:11px;font-family:var(--font-mono);">${issued.toLocaleDateString('en-PH')}</td>
+            <td style="font-family:var(--font-mono);font-size:11px;color:${isUrgent?'var(--red)':'var(--orange)'};">${ageStr}</td>
+            <td style="text-align:right;"><span class="badge badge-pending">OPEN</span></td>
+        </tr>`;
+    }).join('');
+}
+
+// PDF export (opens a printable window)
+function downloadAnalyticsPDF() {
+    showToast('⏳ GENERATING PDF...');
+    const w   = window.open('', '_blank');
+    const now = new Date().toLocaleString('en-PH', { hour12: false });
+    const total = cachedTickets.length;
+    const res   = cachedTickets.filter(t=>(t.Status||'').toLowerCase()==='resolved').length;
+    const pend  = cachedTickets.filter(t=>(t.Status||'').toLowerCase()==='pending').length;
+    const crit  = cachedTickets.filter(t=>(t.SeverityLevel||'').toUpperCase()==='CRITICAL').length;
+    w.document.write(`<html><head><title>Analytics Report</title><style>
+        body{font-family:monospace;padding:40px;background:#fff;color:#000;}
+        h1{font-size:24px;letter-spacing:2px;border-bottom:3px solid #000;padding-bottom:10px;}
+        h2{font-size:14px;letter-spacing:1px;margin-top:24px;color:#333;}
+        table{width:100%;border-collapse:collapse;margin-top:12px;}
+        th{background:#000;color:#fff;padding:8px 12px;text-align:left;font-size:11px;letter-spacing:0.1em;}
+        td{padding:7px 12px;border-bottom:1px solid #eee;font-size:12px;}
+        .kpi{display:inline-block;background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:14px 24px;margin:8px;min-width:140px;text-align:center;}
+        .kpi-num{font-size:32px;font-weight:700;display:block;}
+        .kpi-lbl{font-size:10px;letter-spacing:0.12em;color:#666;text-transform:uppercase;}
+        @media print{body{padding:20px;}}
+    </style></head><body>
+        <h1>CONSUMER CARE — ANALYTICS REPORT</h1>
+        <p style="font-size:11px;color:#666;margin-bottom:20px;">Generated: ${now} · User: ${localStorage.getItem('username')||'SYSTEM'}</p>
+        <h2>KEY PERFORMANCE INDICATORS</h2>
+        <div>
+            <div class="kpi"><span class="kpi-num">${total}</span><span class="kpi-lbl">Total Tickets</span></div>
+            <div class="kpi"><span class="kpi-num">${res}</span><span class="kpi-lbl">Resolved</span></div>
+            <div class="kpi"><span class="kpi-num">${pend}</span><span class="kpi-lbl">Pending</span></div>
+            <div class="kpi"><span class="kpi-num">${crit}</span><span class="kpi-lbl">Critical</span></div>
+            <div class="kpi"><span class="kpi-num">${total>0?((res/total)*100).toFixed(1):'0.0'}%</span><span class="kpi-lbl">Resolution Rate</span></div>
+        </div>
+        <h2>TICKET STATUS BREAKDOWN</h2>
+        <table><thead><tr><th>Ticket #</th><th>Client</th><th>Branch</th><th>Type</th><th>Severity</th><th>Status</th></tr></thead>
+        <tbody>${cachedTickets.slice(0,100).map(t=>`<tr><td>#${t.TicketNo}</td><td>${(t.Name||'---').toUpperCase()}</td><td>${t.Branch||'---'}</td><td>${t.Type||'---'}</td><td>${t.SeverityLevel||'---'}</td><td>${t.Status||'---'}</td></tr>`).join('')}</tbody></table>
+        <p style="font-size:10px;color:#aaa;margin-top:32px;">AGRIBANK CONSUMER CARE SYSTEM · CONFIDENTIAL</p>
+        <script>setTimeout(()=>window.print(),600)</scr`+'ipt></body></html>');
+    w.document.close();
+    showToast('✓ PDF REPORT GENERATED');
+    logAudit('EXPORT_PDF_REPORT', `Analytics report generated — ${total} tickets`, 'export');
+}
+
+// =============================================
+// EXTENDED KPI — Extra dashboard stat cards
+// =============================================
+function updateExtendedKPIs(data) {
+    // SLA compliance: resolved within target
+    const slaTarget = { CRITICAL:120, HIGH:240, MODERATE:480, LOW:1440 };
+    const resolvedWithTime = data.filter(t => (t.Status||'').toLowerCase()==='resolved' && t.DateIssued && t.DateReplied);
+    const slaCompliant = resolvedWithTime.filter(t => {
+        const mins    = (new Date(t.DateReplied)-new Date(t.DateIssued))/60000;
+        const target  = slaTarget[(t.SeverityLevel||'LOW').toUpperCase()] || 480;
+        return mins <= target;
+    });
+    const slaPct = resolvedWithTime.length > 0 ? ((slaCompliant.length/resolvedWithTime.length)*100).toFixed(1) : '--';
+    const slaEl = document.getElementById('stat-sla');
+    if (slaEl) slaEl.textContent = slaPct + '%';
+
+    const critOpenCount = data.filter(t => (t.SeverityLevel||'').toUpperCase()==='CRITICAL' && (t.Status||'').toLowerCase()!=='resolved').length;
+    const critEl = document.getElementById('stat-critical');
+    if (critEl) animateValue(critEl, parseInt(critEl.innerText)||0, critOpenCount);
+
+    const appCount = data.filter(t => (t.Channel||'').toUpperCase().includes('APP')).length;
+    const appEl = document.getElementById('stat-app');
+    if (appEl) animateValue(appEl, parseInt(appEl.innerText)||0, appCount);
+
+    const escalatedCount = data.filter(t => (t.Action||'').toUpperCase()==='ESCALATED').length;
+    const escEl = document.getElementById('stat-escalated');
+    if (escEl) animateValue(escEl, parseInt(escEl.innerText)||0, escalatedCount);
+
+    // Fire notifications for critical unresolved
+    if (critOpenCount > 0) {
+        const existing = notifications.find(n => n.type==='critical' && n.msg.includes('CRITICAL'));
+        if (!existing) pushNotif(`⚠ ${critOpenCount} CRITICAL ticket${critOpenCount>1?'s':''} still unresolved`, 'critical');
+    }
+
+    // SLA chip
+    const slaChip  = document.getElementById('sla-alert-chip');
+    const slaCount = document.getElementById('sla-count');
+    if (slaChip && slaCount) {
+        if (critOpenCount > 0) { slaChip.classList.remove('hidden'); slaCount.textContent = critOpenCount; }
+        else slaChip.classList.add('hidden');
+    }
+}
+
+// =============================================
+// UTILITY: timeAgo
+// =============================================
+function timeAgo(date) {
+    const s = Math.floor((new Date() - new Date(date)) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s/60) + 'm ago';
+    if (s < 86400) return Math.floor(s/3600) + 'h ago';
+    return Math.floor(s/86400) + 'd ago';
+}
+
+
 // =============================================
 // KEYBOARD SHORTCUTS
 // =============================================
@@ -1012,10 +1749,11 @@ document.addEventListener('keydown', e => {
         refreshDashboardData();
     }
     if (e.key >= '1' && e.key <= '5') {
-        const pages = ['dashboard','summary','report','kiosk','admin'];
+        const pages = ['dashboard','summary','report','kiosk','analytics','audit','admin'];
         showPage(pages[parseInt(e.key) - 1]);
     }
+    if (e.key === 'Escape') { closeTicketModal(); const notif = document.getElementById('notif-panel'); if(notif) notif.classList.remove('open'); }
     if (e.key === '?') {
-        alert('KEYBOARD SHORTCUTS\n━━━━━━━━━━━━━━━━━━\n/  →  Focus search\nR  →  Refresh data\n1-5  →  Jump to page');
+        alert('KEYBOARD SHORTCUTS\n━━━━━━━━━━━━━━━━━━\n/  →  Focus search\nR  →  Refresh data\n1-7  →  Jump to page\nEsc →  Close modal');
     }
 });
