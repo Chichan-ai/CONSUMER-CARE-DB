@@ -216,30 +216,66 @@ function toggleTheme() {
 // NAVIGATION
 // =============================================
 function showPage(page) {
-    // Always sync admin nav visibility first, before any page switch
+    const sidebar   = document.getElementById('sidebar');
+    const overlay   = document.getElementById('sidebar-overlay');
+    const hamburger = document.getElementById('hamburger-btn');
+
+    if (sidebar) sidebar.classList.remove('open');
+
+    if (overlay) {
+        overlay.classList.remove('visible');
+        overlay.style.pointerEvents = 'none'; // 🔥 IMPORTANT
+    }
+
+    if (hamburger) hamburger.setAttribute('aria-expanded', 'false');
+
     checkAdminAccess();
 
-    // Guard: if trying to open admin but not authorised, fall back to dashboard
     const navAdmin = document.getElementById('nav-admin');
     if (page === 'admin' && navAdmin && navAdmin.classList.contains('hidden')) {
         page = 'dashboard';
     }
 
     localStorage.setItem('activePage', page);
-    ['dashboard','summary','report','kiosk','admin'].forEach(p => {
+
+    ['dashboard','summary','report','kiosk','analytics','audit','admin'].forEach(p => {
         const pageEl = document.getElementById(`page-${p}`);
         const navEl  = document.getElementById(`nav-${p}`);
         if (pageEl) pageEl.classList.toggle('hidden', p !== page);
         if (navEl)  navEl.classList.toggle('active',  p === page);
     });
-    if (page === 'report') updateDateInput();
-    if (page === 'admin')  renderUserTable();
-    // Close mobile sidebar
-    document.getElementById('sidebar')?.classList.remove('open');
+
+    if (page === 'report')    updateDateInput();
+    if (page === 'admin')     renderUserTable();
+    if (page === 'analytics') renderAnalytics();
+    if (page === 'audit')     { renderAuditLog(); updateAuditCount(); }
 }
 
 function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
+    const sidebar   = document.getElementById('sidebar');
+    const overlay   = document.getElementById('sidebar-overlay');
+    const hamburger = document.getElementById('hamburger-btn');
+
+    const isOpen = sidebar.classList.toggle('open');
+
+    // 🔥 Keep overlay but remove blur effect
+    overlay.classList.toggle('visible', isOpen);
+    overlay.style.backdropFilter = 'none';
+
+    hamburger.setAttribute('aria-expanded', isOpen);
+}
+
+function toggleSidebar() {
+    const sidebar   = document.getElementById('sidebar');
+    const overlay   = document.getElementById('sidebar-overlay');
+    const hamburger = document.getElementById('hamburger-btn');
+
+    const isOpen = sidebar.classList.toggle('open');
+
+    overlay.classList.toggle('visible', isOpen);
+    overlay.style.pointerEvents = isOpen ? 'auto' : 'none'; // 🔥 FIX
+
+    hamburger.setAttribute('aria-expanded', isOpen);
 }
 
 // Auto-refresh admin table every 5 min if visible
@@ -1741,3 +1777,4 @@ document.addEventListener('keydown', e => {
         alert('KEYBOARD SHORTCUTS\n━━━━━━━━━━━━━━━━━━\n/  →  Focus search\nR  →  Refresh data\n1-7  →  Jump to page\nEsc →  Close modal');
     }
 });
+
