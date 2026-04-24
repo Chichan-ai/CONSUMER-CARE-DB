@@ -778,22 +778,16 @@ section { animation: fadeIn 0.22s ease; }
 
 @media (max-width: 767px) { #hamburger-btn { display: flex; } }
 
+
 /* Sidebar backdrop overlay */
 #sidebar-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    backdrop-filter: blur(2px);
-    /* z-index must be above main-content (z:1 in body stacking context)
-       but below sidebar (position:fixed z:100) and hamburger (position:fixed z:200) */
-    z-index: 150;
-    /* Ensure overlay captures all pointer events to block main-content */
     pointer-events: none;
 }
 #sidebar-overlay.visible {
-    pointer-events: all;
+    pointer-events: auto;
 }
+
+#sidebar-overlay.visible { display: block; }
 
 
 /* Table overflow wrapper */
@@ -2682,61 +2676,66 @@ function toggleTheme() {
 // NAVIGATION
 // =============================================
 function showPage(page) {
-    // Always sync admin nav visibility first, before any page switch
+    const sidebar   = document.getElementById('sidebar');
+    const overlay   = document.getElementById('sidebar-overlay');
+    const hamburger = document.getElementById('hamburger-btn');
+
+    if (sidebar) sidebar.classList.remove('open');
+
+    if (overlay) {
+        overlay.classList.remove('visible');
+        overlay.style.pointerEvents = 'none'; // 🔥 IMPORTANT
+    }
+
+    if (hamburger) hamburger.setAttribute('aria-expanded', 'false');
+
     checkAdminAccess();
 
-    // Guard: admin-only pages — fall back to dashboard for encoders
-    const adminOnlyPagesGuard = ['admin', 'audit', 'analytics'];
-    if (adminOnlyPagesGuard.includes(page)) {
-        const currentUser = (localStorage.getItem('username') || '').trim().toUpperCase();
-        const isAdmin = currentUser === 'CHRISTIAN' || currentUser.includes('ADMIN');
-        if (!isAdmin) page = 'dashboard';
+    const navAdmin = document.getElementById('nav-admin');
+    if (page === 'admin' && navAdmin && navAdmin.classList.contains('hidden')) {
+        page = 'dashboard';
     }
 
     localStorage.setItem('activePage', page);
-    ['dashboard','summary','report','kiosk','kiosk-monitoring','analytics','audit','admin'].forEach(p => {
+
+    ['dashboard','summary','report','kiosk','analytics','audit','admin'].forEach(p => {
         const pageEl = document.getElementById(`page-${p}`);
         const navEl  = document.getElementById(`nav-${p}`);
         if (pageEl) pageEl.classList.toggle('hidden', p !== page);
         if (navEl)  navEl.classList.toggle('active',  p === page);
     });
-    if (page === 'report')           updateDateInput();
-    if (page === 'admin')            renderUserTable();
-    if (page === 'analytics')        renderAnalytics();
-    if (page === 'audit')            { renderAuditLog(); updateAuditCount(); }
-    if (page === 'kiosk-monitoring') loadKioskMonitoring();
-    // Close mobile sidebar
-    closeSidebar();
+
+    if (page === 'report')    updateDateInput();
+    if (page === 'admin')     renderUserTable();
+    if (page === 'analytics') renderAnalytics();
+    if (page === 'audit')     { renderAuditLog(); updateAuditCount(); }
 }
 
 function toggleSidebar() {
     const sidebar   = document.getElementById('sidebar');
     const overlay   = document.getElementById('sidebar-overlay');
     const hamburger = document.getElementById('hamburger-btn');
-    const isOpen    = sidebar.classList.toggle('open');
-    // Show/hide overlay and toggle hamburger X animation
-    if (isOpen) {
-        overlay.style.display = 'block';
-        overlay.classList.add('visible');
-    } else {
-        overlay.classList.remove('visible');
-        overlay.style.display = 'none';
-    }
-    hamburger.classList.toggle('menu-open', isOpen);
-    hamburger.setAttribute('aria-expanded', String(isOpen));
+
+    const isOpen = sidebar.classList.toggle('open');
+
+    // 🔥 Keep overlay but remove blur effect
+    overlay.classList.toggle('visible', isOpen);
+    overlay.style.backdropFilter = 'none';
+
+    hamburger.setAttribute('aria-expanded', isOpen);
 }
 
-function closeSidebar() {
+function toggleSidebar() {
     const sidebar   = document.getElementById('sidebar');
     const overlay   = document.getElementById('sidebar-overlay');
     const hamburger = document.getElementById('hamburger-btn');
-    sidebar.classList.remove('open');
-    overlay.classList.remove('visible');
-    overlay.style.display = 'none';
-    if (hamburger) {
-        hamburger.classList.remove('menu-open');
-        hamburger.setAttribute('aria-expanded', 'false');
-    }
+
+    const isOpen = sidebar.classList.toggle('open');
+
+    overlay.classList.toggle('visible', isOpen);
+    overlay.style.pointerEvents = isOpen ? 'auto' : 'none'; // 🔥 FIX
+
+    hamburger.setAttribute('aria-expanded', isOpen);
 }
 
 // Auto-refresh admin table every 5 min if visible
